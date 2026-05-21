@@ -5,38 +5,27 @@ import numpy as np
 import pandas as pd
 
 from preprocessing import load_data
-from models import create_tree, create_knn, create_logistic_regression
+from models import create_tree, create_logistic_regression
 from evaluation import evaluate_model
 
-OUTPUT_DIR = Path("output")
+OUTPUT_DIR = Path("outputs")
 RANDOM_STATE = 0
 
 # Model search spaces
-TREE_DEPTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-K_VALUES = [3, 5, 7]
-LR_ITERATIONS = [1000, 2000]
-
+TREE_DEPTHS = [1, 2]
+LR_ITERATIONS = [1000]
 
 def create_experiments():
     experiments: List[Dict[str, Any]] = []
 
     for depth in TREE_DEPTHS:
+        model = create_tree(depth)
         experiments.append(
             {
                 "model_name": "Decision Tree",
                 "parameter": "max_depth",
                 "value": depth,
-                "model": create_tree(depth),
-            }
-        )
-
-    for k in K_VALUES:
-        experiments.append(
-            {
-                "model_name": "KNN",
-                "parameter": "k",
-                "value": k,
-                "model": create_knn(k),
+                "model": model,
             }
         )
 
@@ -53,9 +42,9 @@ def create_experiments():
     return experiments
 
 
-def run_tests() -> None:
+def run_experiments() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    y, X = load_data()
+    X, y = load_data()
 
     print(f"Loaded dataset with {len(X):,} rows and {X.shape[1]} features.")
     print("Class counts:")
@@ -78,7 +67,6 @@ def run_tests() -> None:
             param_name=exp["parameter"],
             param_value=exp["value"],
             n_splits=5,
-            random_state=RANDOM_STATE,
         )
         results.append(result)
 
@@ -91,17 +79,18 @@ def run_tests() -> None:
         results_df = results_df.sort_values(by=sort_cols, ascending=False)
 
     results_path = OUTPUT_DIR / "model_results.csv"
-    results_df.to_csv(results_path, index=False)
+    results_df.drop(columns="Features").to_csv(results_path, index=False)
 
-    print()
-    print("Saved results to:", results_path)
-    print()
-    print(results_df[["Model", "Parameter", "Setting", "Accuracy", "Precision", "Recall", "F1", "ROC-AUC"]].to_string(index=False))
+    for row in results_df.itertuples():
+        feature_df = row.Features
+        if feature_df is not None:
+            filename = (
+                f"{row.Model}_{row.Setting}_features.csv"
+                .replace(" ", "_")
+            )
+            feature_df.to_csv(
+                OUTPUT_DIR / filename,
+                index=False
+            )
 
-    best_row = results_df.iloc[0]
-    print()
-    print("Best model configuration:")
-    print(
-        f"{best_row['Model']} | {best_row['Parameter']}={best_row['Setting']} | "
-        f"Recall={best_row['Recall']:.4f} | Accuracy={best_row['Accuracy']:.4f}"
-    )
+    return results_df, y

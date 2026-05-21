@@ -16,5 +16,5 @@ def load_data():
     y = diabetes_csv['Diabetes_012']
     X = diabetes_csv.drop(columns='Diabetes_012')
 
-    return y, X
+    return X, y
 

@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from sklearn.base import clone
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import (
@@ -10,6 +11,8 @@ from sklearn.metrics import (
     roc_auc_score
 )
 
+RANDOM_STATE = 0
+
 def evaluate_model(
     model,
     X,
@@ -18,13 +21,11 @@ def evaluate_model(
     param_name=None,
     param_value=None,
     n_splits=5,
-    random_state=0
-    ):
-
+):
     cv = StratifiedKFold(
         n_splits=n_splits,
         shuffle=True,
-        random_state=random_state
+        random_state=RANDOM_STATE
     )
 
     accuracies = []
@@ -33,6 +34,7 @@ def evaluate_model(
     f1s = []
     roc_aucs = []
     confusion_mats = []
+    features = []
 
     for train_idx, test_idx in cv.split(X, y):
         X_train = X.iloc[train_idx]
@@ -54,6 +56,36 @@ def evaluate_model(
             y_prob = fold_model.predict_proba(X_test)[:, 1]
             roc_aucs.append(roc_auc_score(y_test, y_prob))
 
+        if hasattr(fold_model, "feature_importances_"):
+            feature_df = pd.DataFrame({
+                "Feature": X.columns,
+                "Value": fold_model.feature_importances_,
+                "Type": "Importance"
+            })
+            features.append(feature_df)
+
+        elif hasattr(fold_model, "named_steps"):
+            inner_model = fold_model.named_steps["model"]
+            if hasattr(inner_model, "coef_"):
+                feature_df = pd.DataFrame({
+                    "Feature": X.columns,
+                    "Value": abs(inner_model.coef_[0]),
+                    "Type": "Coefficient"
+                })
+                features.append(feature_df)
+
+    mean_features = None
+    if features:
+        all_features = pd.concat(features, ignore_index=True)
+
+        mean_features = (
+            all_features
+            .groupby(["Feature", "Type"])["Value"]
+            .mean()
+            .reset_index()
+            .sort_values(by="Value", ascending=False)
+        )
+
     return {
         "Model": model_name,
         "Parameter": param_name,
@@ -63,5 +95,6 @@ def evaluate_model(
         "Recall": np.mean(recalls),
         "F1": np.mean(f1s),
         "ROC-AUC": np.mean(roc_aucs) if roc_aucs else None,
-        "Confusion Matrix": np.sum(confusion_mats, axis=0)
+        "Confusion Matrix": np.sum(confusion_mats, axis=0),
+        "Features": mean_features
     }
