@@ -1,58 +1,25 @@
-from pathlib import Path
 from typing import Optional, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.metrics import ConfusionMatrixDisplay, RocCurveDisplay
+from sklearn.tree import plot_tree
 
-
+from pathlib import Path
 OUTPUT_DIR = Path("outputs")
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def _save_current_figure(filename: str) -> None:
-    """Save the current matplotlib figure to the outputs directory."""
     path = OUTPUT_DIR / filename
     plt.tight_layout()
     plt.savefig(path, bbox_inches="tight", dpi=150)
     plt.close()
-
-
-def plot_metric_comparison(
-    results_df: pd.DataFrame,
-    metric: str,
-    title: Optional[str] = None,
-    filename: Optional[str] = None,
-) -> None:
-
-    if metric not in results_df.columns:
-        raise ValueError(f"Metric '{metric}' not found in results dataframe.")
-
-    df = results_df.copy()
-    df = df.sort_values(by=metric, ascending=False)
-
-    plt.figure(figsize=(10, 5))
-
-    plt.bar(df["Label"], df[metric])
-
-    plt.xlabel("Model")
-    plt.ylabel(metric)
-    plt.title(title or f"{metric} Comparison")
-
-    plt.xticks(rotation=45, ha="right")
-
-    _save_current_figure(
-        filename or f"{metric.lower().replace('-', '_')}_comparison.png"
-    )
-
 
 def plot_model_metrics(
     results_df: pd.DataFrame,
     metrics: Optional[Sequence[str]] = None,
     filename: str = "model_metrics_comparison.png",
 ) -> None:
-    """Plot several metrics side by side for model comparison."""
     if metrics is None:
         metrics = ["Accuracy", "Precision", "Recall", "F1", "ROC-AUC"]
 
@@ -105,7 +72,6 @@ def plot_confusion_matrix(
     title: str = "Confusion Matrix",
     filename: str = "confusion_matrix.png",
 ) -> None:
-    """Plot a confusion matrix using sklearn's display helper."""
     plt.figure(figsize=(5, 4))
     disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix, display_labels=labels)
     disp.plot(cmap="Blues", values_format="d")
@@ -119,42 +85,16 @@ def plot_roc_curve(
     title: str = "ROC Curve",
     filename: str = "roc_curve.png",
 ) -> None:
-    """Plot a ROC curve from true labels and predicted probabilities."""
     plt.figure(figsize=(6, 5))
     RocCurveDisplay.from_predictions(y_true, y_score)
     plt.title(title)
     _save_current_figure(filename)
-
-
-def plot_feature_importance(
-    feature_names: Sequence[str],
-    importances: Sequence[float],
-    top_n: int = 10,
-    title: str = "Feature Importance",
-    filename: str = "feature_importance.png",
-) -> None:
-    """Plot the top-N feature importances."""
-    importance_df = pd.DataFrame({
-        "Feature": list(feature_names),
-        "Importance": list(importances),
-    })
-    importance_df = importance_df.sort_values(by="Importance", ascending=False).head(top_n)
-    importance_df = importance_df.sort_values(by="Importance", ascending=True)
-
-    plt.figure(figsize=(8, 5))
-    plt.barh(importance_df["Feature"], importance_df["Importance"])
-    plt.xlabel("Importance")
-    plt.title(title)
-
-    _save_current_figure(filename)
-
 
 def plot_class_distribution(
     y: Sequence[int],
     title: str = "Class Distribution",
     filename: str = "class_distribution.png",
 ) -> None:
-    """Plot the distribution of target classes."""
     values = pd.Series(y).value_counts().sort_index()
 
     plt.figure(figsize=(6, 4))
@@ -164,6 +104,45 @@ def plot_class_distribution(
     plt.title(title)
 
     _save_current_figure(filename)
+
+def plot_features(
+    features: pd.DataFrame,
+    model_name: str,
+    filename: str,
+    top_n: int = 10,
+) -> None:
+
+    if features is None or features.empty:
+        return
+
+    filename = filename.replace(" ", "_").lower()
+
+    feature_type = features.iloc[0]["Type"]
+
+    features = (
+        features
+        .sort_values(by="Value", ascending=False)
+        .head(top_n)
+        .sort_values(by="Value", ascending=True)
+    )
+
+    plt.figure(figsize=(8, 5))
+
+    plt.barh(
+        features["Feature"],
+        features["Value"]
+    )
+
+    plt.xlabel(feature_type)
+    plt.ylabel("Feature")
+
+    plt.title(
+        f"{model_name} {feature_type} Analysis"
+    )
+
+    _save_current_figure(
+        filename + "_features.png"
+    )
 
 def generate_visualizations(results_df, y):
     results_df["Label"] = (
@@ -177,12 +156,5 @@ def generate_visualizations(results_df, y):
 
     plot_model_metrics(results_df)
 
-    plot_metric_comparison(
-        results_df,
-        metric="Recall"
-    )
-
-    plot_metric_comparison(
-        results_df,
-        metric="Accuracy"
-    )
+    for row in results_df.itertuples():
+        plot_features(features=row.Features, filename=row.Label, model_name=row.Label)

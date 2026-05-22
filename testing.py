@@ -1,18 +1,19 @@
 from pathlib import Path
 from typing import List, Dict, Any
-
-import numpy as np
 import pandas as pd
 
 from preprocessing import load_data
-from models import create_tree, create_logistic_regression
+from models import create_tree, create_logistic_regression, create_random_forest
 from evaluation import evaluate_model
 
+from pathlib import Path
 OUTPUT_DIR = Path("outputs")
+
 RANDOM_STATE = 0
 
 # Model search spaces
-TREE_DEPTHS = [1, 2]
+TREE_DEPTHS = [3, 6, 9]
+FOREST_DEPTHS = [3, 6, 9]
 LR_ITERATIONS = [1000]
 
 def create_experiments():
@@ -23,6 +24,17 @@ def create_experiments():
         experiments.append(
             {
                 "model_name": "Decision Tree",
+                "parameter": "max_depth",
+                "value": depth,
+                "model": model,
+            }
+        )
+
+    for depth in FOREST_DEPTHS:
+        model = create_random_forest(depth)
+        experiments.append(
+            {
+                "model_name": "Random Forest",
                 "parameter": "max_depth",
                 "value": depth,
                 "model": model,
@@ -86,7 +98,7 @@ def run_experiments() -> None:
         if feature_df is not None:
             filename = (
                 f"{row.Model}_{row.Setting}_features.csv"
-                .replace(" ", "_")
+                .replace(" ", "_").lower()
             )
             feature_df.to_csv(
                 OUTPUT_DIR / filename,

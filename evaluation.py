@@ -35,12 +35,17 @@ def evaluate_model(
     roc_aucs = []
     confusion_mats = []
     features = []
+    all_probs = []
+    all_true = []
 
     for train_idx, test_idx in cv.split(X, y):
         X_train = X.iloc[train_idx]
         X_test = X.iloc[test_idx]
         y_train = y.iloc[train_idx]
         y_test = y.iloc[test_idx]
+
+        all_probs.extend(y_prob)
+        all_true.extend(y_test)
 
         fold_model = clone(model)
         fold_model.fit(X_train, y_train)
@@ -96,5 +101,7 @@ def evaluate_model(
         "F1": np.mean(f1s),
         "ROC-AUC": np.mean(roc_aucs) if roc_aucs else None,
         "Confusion Matrix": np.sum(confusion_mats, axis=0),
-        "Features": mean_features
+        "Features": mean_features,
+        "Probabilities": all_probs,
+        "True Labels": all_true,
     }
